@@ -24,6 +24,8 @@ import time
 
 from django.conf import settings
 
+MODEL_CACHE = {"model": None}
+
 def get_face_box(rgb_frame):
     gray = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2GRAY)
     face_cascade = cv2.CascadeClassifier(
@@ -50,6 +52,17 @@ std=[0.229, 0.224, 0.225]
 sm = nn.Softmax()
 inv_normalize =  transforms.Normalize(mean=-1*np.divide(mean,std),std=np.divide([1,1,1],std))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+MODEL_CACHE = {"model": None}
+
+def get_model():
+    if MODEL_CACHE["model"] is not None:
+        return MODEL_CACHE["model"]
+
+    model = get_model()
+
+    MODEL_CACHE["model"] = model
+    return model
 
 train_transforms = transforms.Compose([
                                         transforms.ToPILImage(),
