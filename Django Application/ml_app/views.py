@@ -1,3 +1,4 @@
+from pyexpat import model
 from urllib import request
 from django.shortcuts import render, redirect
 import torch
@@ -284,7 +285,7 @@ def predict_page(request):
         video_file_name_only = os.path.splitext(video_file_name)[0]
         # Production environment adjustments
         if not settings.DEBUG:
-            production_video_name = os.path.join('/home/app/staticfiles/', video_file_name.split('/')[3])
+            production_video_name = os.path.basename(video_file)
             print("Production file name", production_video_name)
         else:
             production_video_name = video_file_name
@@ -298,8 +299,9 @@ def predict_page(request):
         else:
             model = Model(2).to(device) 
             
-        model_name = os.path.join(settings.PROJECT_DIR, 'models', get_accurate_model(sequence_length))
-        path_to_model = os.path.join(settings.PROJECT_DIR, model_name)
+        path_to_model = os.path.join(settings.PROJECT_DIR, "models", "model.pt")
+        model.load_state_dict(torch.load(path_to_model, map_location=device))
+        model.eval()
         model.load_state_dict(torch.load(path_to_model, map_location=torch.device('cpu')))
         model.eval()
         start_time = time.time()
