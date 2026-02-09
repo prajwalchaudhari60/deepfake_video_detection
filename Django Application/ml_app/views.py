@@ -7,8 +7,7 @@ from torch.utils.data.dataset import Dataset
 import os
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
-import face_recognition
+
 from torch.autograd import Variable
 import time
 import sys
@@ -20,7 +19,23 @@ from torchvision import models
 import shutil
 from PIL import Image as pImage
 import time
+
 from django.conf import settings
+
+def get_face_box(rgb_frame):
+    gray = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2GRAY)
+    face_cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
+    dets = face_cascade.detectMultiScale(
+        gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60)
+    )
+    if len(dets) == 0:
+        return None
+    x, y, w, h = dets[0]
+    # return like face_recognition: top, right, bottom, left
+    return y, x + w, y + h, x
+
 from .forms import VideoUploadForm
 
 index_template_name = 'index.html'
@@ -32,10 +47,7 @@ mean=[0.485, 0.456, 0.406]
 std=[0.229, 0.224, 0.225]
 sm = nn.Softmax()
 inv_normalize =  transforms.Normalize(mean=-1*np.divide(mean,std),std=np.divide([1,1,1],std))
-if torch.cuda.is_available():
-    device = 'gpu'
-else:
-    device = 'cpu'
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 train_transforms = transforms.Compose([
                                         transforms.ToPILImage(),
@@ -81,12 +93,12 @@ class validation_dataset(Dataset):
         first_frame = np.random.randint(0,a)
         for i,frame in enumerate(self.frame_extract(video_path)):
             #if(i % a == first_frame):
-            faces = face_recognition.face_locations(frame)
-            try:
-              top,right,bottom,left = faces[0]
-              frame = frame[top:bottom,left:right,:]
-            except:
-              pass
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            box = get_face_box(rgb)
+            if box:
+                top, right, bottom, left = box
+                frame = frame[top:bottom, left:right, :]
+
             frames.append(self.transform(frame))
             if(len(frames) == self.count):
                 break
@@ -279,10 +291,11 @@ def predict_page(request):
         video_dataset = validation_dataset(path_to_videos, sequence_length=sequence_length, transform=train_transforms)
 
         # Load model
-        if(device == "gpu"):
-            model = Model(2).cuda()  # Adjust the model instantiation according to your model structure
+        if torch.cuda.is_available():
+            model = Model(2).to(device)
         else:
-            model = Model(2).cpu()  # Adjust the model instantiation according to your model structure
+            model = Model(2).to(device) 
+            
         model_name = os.path.join(settings.PROJECT_DIR, 'models', get_accurate_model(sequence_length))
         path_to_model = os.path.join(settings.PROJECT_DIR, model_name)
         model.load_state_dict(torch.load(path_to_model, map_location=torch.device('cpu')))
@@ -322,11 +335,10 @@ def predict_page(request):
             preprocessed_images.append(image_name)
 
             # Face detection and cropping
-            face_locations = face_recognition.face_locations(rgb_frame)
-            if len(face_locations) == 0:
-                continue
-
-            top, right, bottom, left = face_locations[0]
+            box = get_face_box(rgb_frame)
+            if not box:
+             continue
+            top, right, bottom, left = box 
             frame_face = frame[top - padding:bottom + padding, left - padding:right + padding]
 
             # Convert cropped face image to RGB and save
