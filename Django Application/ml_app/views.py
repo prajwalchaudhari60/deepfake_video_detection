@@ -1,3 +1,4 @@
+from urllib import request
 from django.shortcuts import render, redirect
 import torch
 import torchvision
@@ -255,14 +256,15 @@ def index(request):
                 return render(request, index_template_name, {"form": video_upload_form})
             
             saved_video_file = 'uploaded_file_'+str(int(time.time()))+"."+video_file_ext
-            if settings.DEBUG:
-                with open(os.path.join(settings.PROJECT_DIR, 'uploaded_videos', saved_video_file), 'wb') as vFile:
-                    shutil.copyfileobj(video_file, vFile)
-                request.session['file_name'] = os.path.join(settings.PROJECT_DIR, 'uploaded_videos', saved_video_file)
-            else:
-                with open(os.path.join(settings.PROJECT_DIR, 'uploaded_videos','app','uploaded_videos', saved_video_file), 'wb') as vFile:
-                    shutil.copyfileobj(video_file, vFile)
-                request.session['file_name'] = os.path.join(settings.PROJECT_DIR, 'uploaded_videos','app','uploaded_videos', saved_video_file)
+
+            upload_dir = os.path.join(settings.PROJECT_DIR, "uploaded_videos")
+            os.makedirs(upload_dir, exist_ok=True)
+
+            save_path = os.path.join(upload_dir, saved_video_file)
+            with open(save_path, "wb") as vFile:
+                shutil.copyfileobj(video_file, vFile)
+
+            request.session["file_name"] = save_path
             request.session['sequence_length'] = sequence_length
             return redirect('ml_app:predict')
         else:
